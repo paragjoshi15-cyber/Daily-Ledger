@@ -1,0 +1,1049 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Daily Ledger — Purchase Invoices</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1F2420">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Ledger">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="icon" href="icons/icon-192.png">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<script src="xlsx.full.min.js"></script>
+
+<style>
+:root{
+  --ink:#2B2620;
+  --paper:#F7F3EA;
+  --paper-dim:#EFE9DA;
+  --charcoal:#1F2420;
+  --charcoal-2:#262C27;
+  --red:#B23A2E;
+  --red-dim:#8f2f25;
+  --green:#3F6F52;
+  --green-dim:#335a42;
+  --gold:#C99A3C;
+  --line:#DCD3BC;
+  --line-dark:#3a423c;
+  --shadow: 0 8px 24px rgba(31,36,32,0.18);
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+html,body{margin:0;padding:0;}
+body{
+  font-family:'Inter',-apple-system,system-ui,'Segoe UI',Roboto,sans-serif;
+  background:var(--charcoal);
+  color:var(--ink);
+  min-height:100vh;
+  overscroll-behavior:none;
+}
+#app{
+  max-width:480px;
+  margin:0 auto;
+  min-height:100vh;
+  background:var(--paper);
+  position:relative;
+  display:flex;
+  flex-direction:column;
+  padding-bottom:78px;
+}
+
+/* ===== Header ===== */
+.topbar{
+  background:var(--charcoal);
+  color:var(--paper);
+  padding:18px 20px 16px;
+  position:sticky;
+  top:0;
+  z-index:30;
+  border-bottom:3px solid var(--gold);
+}
+.topbar-row{display:flex; align-items:center; justify-content:space-between;}
+.topbar-title{
+  font-size:13px;
+  letter-spacing:0.14em;
+  text-transform:uppercase;
+  color:var(--gold);
+  font-weight:700;
+  margin:0 0 2px;
+}
+.topbar-sub{
+  font-family:'JetBrains Mono',monospace;
+  font-size:20px;
+  font-weight:600;
+  margin:0;
+}
+.icon-btn{
+  background:rgba(247,243,234,0.08);
+  border:1px solid rgba(247,243,234,0.18);
+  color:var(--paper);
+  width:38px;height:38px;
+  border-radius:10px;
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;
+  font-size:18px;
+}
+.icon-btn:active{background:rgba(247,243,234,0.18);}
+
+/* ===== Receipt total card (signature element) ===== */
+.receipt-card{
+  margin:16px 16px 8px;
+  background:#FFFDF7;
+  border-radius:2px;
+  box-shadow:var(--shadow);
+  position:relative;
+  padding:18px 20px 16px;
+}
+.receipt-card::before, .receipt-card::after{
+  content:"";
+  position:absolute;
+  left:0; right:0;
+  height:10px;
+  background-image: radial-gradient(circle at 6px 5px, transparent 5px, #FFFDF7 5.5px);
+  background-size:14px 10px;
+  background-repeat:repeat-x;
+}
+.receipt-card::before{ top:-6px; transform:rotate(180deg); background-color:transparent;}
+.receipt-card::after{ bottom:-6px; }
+.receipt-row{
+  display:flex; justify-content:space-between; align-items:baseline;
+  font-family:'JetBrains Mono',monospace;
+  font-size:13px;
+  padding:3px 0;
+  color:#5b554a;
+  border-bottom:1px dashed var(--line);
+}
+.receipt-row:last-of-type{border-bottom:none;}
+.receipt-row .v{color:var(--ink); font-weight:600;}
+.receipt-total{
+  display:flex; justify-content:space-between; align-items:baseline;
+  margin-top:10px; padding-top:10px;
+  border-top:2px solid var(--ink);
+}
+.receipt-total .l{font-weight:700; font-size:14px; letter-spacing:0.04em; text-transform:uppercase;}
+.receipt-total .v{
+  font-family:'JetBrains Mono',monospace;
+  font-size:26px; font-weight:700; color:var(--red);
+}
+.receipt-date{
+  font-family:'JetBrains Mono',monospace;
+  font-size:11px; color:#8a8374; text-align:center;
+  letter-spacing:0.08em;
+  margin-bottom:8px;
+}
+
+/* ===== Date nav ===== */
+.date-nav{
+  display:flex; align-items:center; gap:8px;
+  margin:4px 16px 12px;
+}
+.date-nav button{
+  background:var(--charcoal); color:var(--paper);
+  border:none; width:34px; height:34px; border-radius:8px;
+  font-size:16px; cursor:pointer;
+}
+.date-input-wrap{
+  flex:1;
+  background:#fff;
+  border:1.5px solid var(--line);
+  border-radius:8px;
+  padding:8px 12px;
+  display:flex; align-items:center; gap:8px;
+}
+.date-input-wrap input[type=date]{
+  border:none; outline:none; font-family:'JetBrains Mono',monospace;
+  font-size:14px; font-weight:600; color:var(--ink); width:100%; background:transparent;
+}
+
+/* ===== Section label ===== */
+.section-label{
+  display:flex; justify-content:space-between; align-items:center;
+  margin:18px 16px 8px;
+  font-size:12px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase;
+  color:#8a8374;
+}
+.section-label .count{
+  background:var(--paper-dim); padding:2px 8px; border-radius:20px; font-family:'JetBrains Mono',monospace;
+}
+
+/* ===== Invoice list ===== */
+.invoice-list{ margin:0 16px; display:flex; flex-direction:column; gap:8px; }
+.invoice-card{
+  background:#fff;
+  border:1px solid var(--line);
+  border-left:4px solid var(--green);
+  border-radius:8px;
+  padding:11px 14px;
+  display:flex; justify-content:space-between; align-items:center;
+  gap:10px;
+  cursor:pointer;
+}
+.invoice-card.unpaid{ border-left-color:var(--red); }
+.inv-main{ min-width:0; flex:1;}
+.inv-name{ font-weight:700; font-size:14.5px; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.inv-meta{ font-size:11.5px; color:#9c9484; margin-top:2px; display:flex; gap:6px; flex-wrap:wrap;}
+.inv-tag{
+  background:var(--paper-dim); padding:1px 7px; border-radius:5px; font-weight:600; color:#6b6354;
+}
+.inv-amt{
+  font-family:'JetBrains Mono',monospace;
+  font-weight:700; font-size:16px; text-align:right; white-space:nowrap;
+}
+.inv-amt small{ display:block; font-size:10px; font-weight:500; color:#9c9484; }
+
+.empty-state{
+  margin:30px 24px; text-align:center; color:#9c9484;
+}
+.empty-state .icon{font-size:34px; margin-bottom:10px;}
+.empty-state p{font-size:13.5px; line-height:1.5; margin:4px 0;}
+
+/* ===== Category chips summary ===== */
+.cat-summary{ display:flex; gap:8px; overflow-x:auto; margin:0 16px 4px; padding-bottom:4px; }
+.cat-chip{
+  flex-shrink:0;
+  background:var(--charcoal); color:var(--paper);
+  border-radius:20px; padding:6px 12px;
+  font-size:11.5px; font-weight:600;
+  display:flex; gap:6px; align-items:center;
+  font-family:'JetBrains Mono',monospace;
+}
+.cat-chip .dot{width:7px;height:7px;border-radius:50%;}
+
+/* ===== FAB ===== */
+.fab{
+  position:fixed;
+  bottom:90px;
+  right:50%;
+  transform:translateX(176px);
+  width:58px; height:58px;
+  background:var(--red);
+  color:#fff;
+  border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  font-size:28px;
+  box-shadow:0 6px 18px rgba(178,58,46,0.45);
+  cursor:pointer;
+  z-index:40;
+  border:none;
+}
+@media (max-width:480px){
+  .fab{ right:20px; transform:none; }
+}
+
+/* ===== Bottom nav ===== */
+.bottom-nav{
+  position:fixed; bottom:0; left:0; right:0;
+  max-width:480px; margin:0 auto;
+  background:var(--charcoal);
+  display:flex;
+  border-top:1px solid var(--line-dark);
+  z-index:35;
+  padding-bottom:env(safe-area-inset-bottom);
+}
+.nav-btn{
+  flex:1; background:none; border:none; color:#7a8079;
+  display:flex; flex-direction:column; align-items:center; gap:3px;
+  padding:10px 0 8px; font-size:10.5px; font-weight:600; letter-spacing:0.03em;
+  cursor:pointer;
+}
+.nav-btn .ic{font-size:19px;}
+.nav-btn.active{ color:var(--gold); }
+
+/* ===== Modal / Sheet ===== */
+.sheet-overlay{
+  position:fixed; inset:0; background:rgba(20,22,18,0.55);
+  z-index:50; display:none;
+  align-items:flex-end; justify-content:center;
+}
+.sheet-overlay.show{ display:flex; }
+.sheet{
+  background:var(--paper);
+  width:100%; max-width:480px;
+  border-radius:18px 18px 0 0;
+  max-height:92vh; overflow-y:auto;
+  padding:18px 18px calc(20px + env(safe-area-inset-bottom));
+  animation:slideUp 0.22s ease-out;
+}
+@keyframes slideUp{ from{transform:translateY(40px); opacity:0.4;} to{transform:translateY(0); opacity:1;} }
+.sheet-handle{ width:40px; height:4px; background:var(--line); border-radius:4px; margin:0 auto 14px; }
+.sheet-title{ font-size:17px; font-weight:800; margin:0 0 16px; display:flex; justify-content:space-between; align-items:center;}
+.sheet-title .x{ font-size:22px; color:#9c9484; cursor:pointer; line-height:1;}
+
+.field{ margin-bottom:14px; }
+.field label{
+  display:block; font-size:11.5px; font-weight:700; text-transform:uppercase;
+  letter-spacing:0.06em; color:#8a8374; margin-bottom:5px;
+}
+.field input, .field select{
+  width:100%; padding:11px 12px;
+  border:1.5px solid var(--line); border-radius:9px;
+  font-size:15px; font-family:'Inter',sans-serif; background:#fff; color:var(--ink);
+  outline:none;
+}
+.field input:focus, .field select:focus{ border-color:var(--green); }
+.field-row{ display:flex; gap:10px; }
+.field-row .field{ flex:1; }
+.field input[type=number]{font-family:'JetBrains Mono',monospace; font-weight:600;}
+
+.cat-picker{ display:flex; flex-wrap:wrap; gap:8px; }
+.cat-pill{
+  padding:8px 14px; border-radius:20px; font-size:13px; font-weight:600;
+  background:#fff; border:1.5px solid var(--line); color:var(--ink); cursor:pointer;
+}
+.cat-pill.active{ background:var(--green); color:#fff; border-color:var(--green); }
+.cat-pill.add-new{ border-style:dashed; color:#9c9484; }
+
+.toggle-row{ display:flex; gap:10px; }
+.toggle-opt{
+  flex:1; text-align:center; padding:11px; border-radius:9px;
+  border:1.5px solid var(--line); font-weight:700; font-size:13.5px; cursor:pointer; color:#9c9484;
+}
+.toggle-opt.paid.active{ background:var(--green); color:#fff; border-color:var(--green); }
+.toggle-opt.unpaid.active{ background:var(--red); color:#fff; border-color:var(--red); }
+
+.btn-primary{
+  width:100%; padding:14px; background:var(--charcoal); color:var(--paper);
+  border:none; border-radius:10px; font-size:15px; font-weight:700; cursor:pointer; margin-top:6px;
+  letter-spacing:0.02em;
+}
+.btn-primary:active{ background:#13160f; }
+.btn-danger{
+  width:100%; padding:13px; background:none; color:var(--red);
+  border:1.5px solid var(--red); border-radius:10px; font-size:14px; font-weight:700; cursor:pointer; margin-top:10px;
+}
+
+/* ===== Reports page ===== */
+.page{ padding:16px; display:none; flex:1; }
+.page.active{ display:flex; flex-direction:column; }
+.page-title{ font-size:20px; font-weight:800; margin:4px 0 4px;}
+.page-sub{ font-size:12.5px; color:#9c9484; margin:0 0 16px; }
+
+.range-tabs{ display:flex; gap:6px; margin-bottom:16px; }
+.range-tab{
+  flex:1; text-align:center; padding:9px 0; border-radius:8px; font-size:12.5px; font-weight:700;
+  background:#fff; border:1.5px solid var(--line); color:#9c9484; cursor:pointer;
+}
+.range-tab.active{ background:var(--charcoal); color:var(--gold); border-color:var(--charcoal); }
+
+.stat-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px; }
+.stat-box{ background:#fff; border:1px solid var(--line); border-radius:10px; padding:14px; }
+.stat-box .lbl{ font-size:11px; color:#9c9484; font-weight:700; text-transform:uppercase; letter-spacing:0.04em;}
+.stat-box .val{ font-family:'JetBrains Mono',monospace; font-size:20px; font-weight:700; margin-top:4px; color:var(--ink);}
+.stat-box.accent .val{ color:var(--red); }
+
+.bar-row{ display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+.bar-label{ width:90px; font-size:12px; font-weight:600; flex-shrink:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.bar-track{ flex:1; height:20px; background:var(--paper-dim); border-radius:6px; overflow:hidden; }
+.bar-fill{ height:100%; background:var(--green); border-radius:6px; }
+.bar-amt{ width:70px; text-align:right; font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:700; flex-shrink:0;}
+
+.supplier-row{
+  display:flex; justify-content:space-between; align-items:center; padding:12px 0;
+  border-bottom:1px solid var(--line);
+}
+.supplier-row:last-child{ border-bottom:none; }
+.supplier-name{ font-weight:700; font-size:13.5px; }
+.supplier-count{ font-size:11px; color:#9c9484; }
+.supplier-amt{ font-family:'JetBrains Mono',monospace; font-weight:700; font-size:14px;}
+
+.export-btn{
+  display:flex; align-items:center; justify-content:center; gap:8px;
+  background:var(--green); color:#fff; border:none; border-radius:10px;
+  padding:14px; font-weight:700; font-size:14.5px; cursor:pointer; margin-top:10px; width:100%;
+}
+.export-note{ font-size:11.5px; color:#9c9484; text-align:center; margin-top:8px; line-height:1.4;}
+
+.settings-section{ margin-bottom:22px; }
+.settings-label{ font-size:12px; font-weight:700; color:#8a8374; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:10px;}
+.settings-list{ background:#fff; border:1px solid var(--line); border-radius:10px; overflow:hidden;}
+.settings-item{
+  display:flex; justify-content:space-between; align-items:center;
+  padding:13px 14px; border-bottom:1px solid var(--line); font-size:14px; font-weight:600;
+}
+.settings-item:last-child{ border-bottom:none; }
+.settings-item .remove{ color:var(--red); font-size:13px; font-weight:700; cursor:pointer; }
+.add-cat-row{ display:flex; gap:8px; margin-top:10px; }
+.add-cat-row input{ flex:1; padding:11px 12px; border:1.5px solid var(--line); border-radius:9px; font-size:14px;}
+.add-cat-row button{ background:var(--charcoal); color:#fff; border:none; border-radius:9px; padding:0 18px; font-weight:700; cursor:pointer;}
+
+.toast{
+  position:fixed; bottom:90px; left:50%; transform:translateX(-50%) translateY(10px);
+  background:var(--charcoal); color:#fff; padding:11px 20px; border-radius:30px; font-size:13px; font-weight:600;
+  opacity:0; transition:all 0.25s; z-index:80; pointer-events:none; box-shadow:var(--shadow);
+}
+.toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ===================== HOME PAGE ===================== -->
+  <div class="page active" id="page-home">
+    <div class="topbar">
+      <div class="topbar-row">
+        <div>
+          <p class="topbar-title">Daily Ledger</p>
+          <p class="topbar-sub" id="headerDate">--</p>
+        </div>
+        <button class="icon-btn" onclick="shiftDay(-0)" style="display:none"></button>
+      </div>
+    </div>
+
+    <div class="receipt-card">
+      <div class="receipt-date" id="receiptDateLabel">—</div>
+      <div class="receipt-row"><span>Invoices</span><span class="v" id="rInvCount">0</span></div>
+      <div class="receipt-row"><span>Subtotal</span><span class="v" id="rSubtotal">0.00</span></div>
+      <div class="receipt-row"><span>VAT</span><span class="v" id="rVat">0.00</span></div>
+      <div class="receipt-total"><span class="l">Total</span><span class="v" id="rTotal">AED 0.00</span></div>
+    </div>
+
+    <div class="date-nav">
+      <button onclick="shiftDay(-1)">‹</button>
+      <div class="date-input-wrap">
+        <input type="date" id="activeDate" onchange="onDateChange()">
+      </div>
+      <button onclick="shiftDay(1)">›</button>
+    </div>
+
+    <div class="cat-summary" id="catSummary"></div>
+
+    <div class="section-label">
+      <span>Today's Invoices</span>
+      <span class="count" id="invCountLabel">0</span>
+    </div>
+    <div class="invoice-list" id="invoiceList"></div>
+    <div class="empty-state" id="emptyState" style="display:none;">
+      <div class="icon">🧾</div>
+      <p><strong>No invoices yet for this day</strong></p>
+      <p>Tap the + button to log your first purchase invoice.</p>
+    </div>
+  </div>
+
+  <!-- ===================== REPORTS PAGE ===================== -->
+  <div class="page" id="page-reports">
+    <div class="topbar" style="margin:-16px -16px 16px;">
+      <p class="topbar-title">Reports</p>
+      <p class="topbar-sub">Spending Overview</p>
+    </div>
+
+    <div class="range-tabs">
+      <div class="range-tab active" data-range="week" onclick="setReportRange('week')">This Week</div>
+      <div class="range-tab" data-range="month" onclick="setReportRange('month')">This Month</div>
+      <div class="range-tab" data-range="all" onclick="setReportRange('all')">All Time</div>
+    </div>
+
+    <div class="stat-grid">
+      <div class="stat-box"><div class="lbl">Invoices</div><div class="val" id="repCount">0</div></div>
+      <div class="stat-box accent"><div class="lbl">Total Spend</div><div class="val" id="repTotal">0.00</div></div>
+      <div class="stat-box"><div class="lbl">Total VAT</div><div class="val" id="repVat">0.00</div></div>
+      <div class="stat-box"><div class="lbl">Avg / Invoice</div><div class="val" id="repAvg">0.00</div></div>
+    </div>
+
+    <div class="section-label" style="margin:6px 0 10px;"><span>By Category</span></div>
+    <div id="catBars"></div>
+
+    <div class="section-label" style="margin:14px 0 4px;"><span>By Supplier</span></div>
+    <div class="settings-list" id="supplierList" style="margin-bottom:10px;"></div>
+  </div>
+
+  <!-- ===================== EXPORT PAGE ===================== -->
+  <div class="page" id="page-export">
+    <div class="topbar" style="margin:-16px -16px 16px;">
+      <p class="topbar-title">Export</p>
+      <p class="topbar-sub">For Your Accountant</p>
+    </div>
+
+    <div class="field">
+      <label>From Date</label>
+      <input type="date" id="exportFrom">
+    </div>
+    <div class="field">
+      <label>To Date</label>
+      <input type="date" id="exportTo">
+    </div>
+
+    <button class="export-btn" onclick="exportExcel()">⬇ Download Excel (.xlsx)</button>
+    <p class="export-note">Exports in the same column format as your existing creditor book — Date, Name, Invoice No., Amount, VAT, Total, plus category columns. Share the file via WhatsApp, email, or Drive.</p>
+
+    <button class="export-btn" style="background:var(--charcoal); margin-top:18px;" onclick="exportBackupJSON()">⬇ Backup All Data (.json)</button>
+    <p class="export-note">A full backup of every invoice you've entered. Keep this safe — use Restore in Settings if you ever switch phones.</p>
+  </div>
+
+  <!-- ===================== SETTINGS PAGE ===================== -->
+  <div class="page" id="page-settings">
+    <div class="topbar" style="margin:-16px -16px 16px;">
+      <p class="topbar-title">Settings</p>
+      <p class="topbar-sub">Categories & Data</p>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-label">Your Categories</div>
+      <div class="settings-list" id="categoryManageList"></div>
+      <div class="add-cat-row">
+        <input type="text" id="newCatInput" placeholder="New category name">
+        <button onclick="addCategory()">Add</button>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-label">Currency Symbol</div>
+      <div class="settings-list">
+        <div class="settings-item" style="gap:10px;">
+          <input type="text" id="currencySymbol" value="AED" style="border:1.5px solid var(--line); border-radius:8px; padding:8px 10px; width:90px; font-family:'JetBrains Mono',monospace; font-weight:700;" onchange="saveCurrency()">
+          <span style="color:#9c9484; font-size:12.5px;">Shown on totals & receipts</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-label">Data</div>
+      <div class="settings-list" style="margin-bottom:10px;">
+        <div class="settings-item" style="flex-direction:column; align-items:stretch; gap:8px;">
+          <span style="font-size:12.5px; color:#9c9484; font-weight:500;">Restore from a backup file (.json) you exported earlier</span>
+          <input type="file" id="restoreFileInput" accept="application/json" style="display:none;" onchange="restoreFromFile(event)">
+          <button class="btn-primary" style="background:var(--green); margin-top:0;" onclick="document.getElementById('restoreFileInput').click()">Restore from Backup</button>
+        </div>
+      </div>
+      <button class="btn-danger" onclick="confirmClearAll()">Erase All Data</button>
+    </div>
+
+    <p style="text-align:center; font-size:11px; color:#b3ab98; margin-top:30px;">Daily Ledger v1.0 — works fully offline</p>
+  </div>
+
+  <button class="fab" onclick="openAddSheet()">+</button>
+
+  <div class="bottom-nav">
+    <button class="nav-btn active" data-page="home" onclick="showPage('home')"><span class="ic">🧾</span>Ledger</button>
+    <button class="nav-btn" data-page="reports" onclick="showPage('reports')"><span class="ic">📊</span>Reports</button>
+    <button class="nav-btn" data-page="export" onclick="showPage('export')"><span class="ic">📤</span>Export</button>
+    <button class="nav-btn" data-page="settings" onclick="showPage('settings')"><span class="ic">⚙️</span>Settings</button>
+  </div>
+</div>
+
+<!-- ===================== ADD/EDIT INVOICE SHEET ===================== -->
+<div class="sheet-overlay" id="addSheetOverlay">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">
+      <span id="sheetTitle">Add Invoice</span>
+      <span class="x" onclick="closeAddSheet()">&times;</span>
+    </div>
+
+    <div class="field">
+      <label>Supplier Name</label>
+      <input type="text" id="f_name" placeholder="e.g. Crown Dairy" autocomplete="off">
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <label>Invoice No.</label>
+        <input type="text" id="f_invno" placeholder="e.g. 44042">
+      </div>
+      <div class="field">
+        <label>Date</label>
+        <input type="date" id="f_date">
+      </div>
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <label>Amount (excl. VAT)</label>
+        <input type="number" inputmode="decimal" id="f_amount" placeholder="0.00" oninput="recalcVat()">
+      </div>
+      <div class="field">
+        <label>VAT</label>
+        <input type="number" inputmode="decimal" id="f_vat" placeholder="0.00">
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Total</label>
+      <input type="number" inputmode="decimal" id="f_total" placeholder="0.00">
+    </div>
+
+    <div class="field">
+      <label>Category</label>
+      <div class="cat-picker" id="catPicker"></div>
+    </div>
+
+    <div class="field">
+      <label>Payment Status</label>
+      <div class="toggle-row">
+        <div class="toggle-opt unpaid active" id="toggleUnpaid" onclick="setPaidStatus(false)">Unpaid / Credit</div>
+        <div class="toggle-opt paid" id="togglePaid" onclick="setPaidStatus(true)">Paid</div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Note (optional)</label>
+      <input type="text" id="f_note" placeholder="e.g. delivery van, monthly maintenance...">
+    </div>
+
+    <button class="btn-primary" onclick="saveInvoice()">Save Invoice</button>
+    <button class="btn-danger" id="deleteBtn" style="display:none;" onclick="deleteInvoice()">Delete Invoice</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ===================== DATA LAYER ===================== */
+const STORAGE_KEY = 'ledger_invoices_v1';
+const CAT_KEY = 'ledger_categories_v1';
+const CURR_KEY = 'ledger_currency_v1';
+const DEFAULT_CATS = ['Food','Vehicle','Packing','Maintenance','Misc','SHJ Govt'];
+
+let invoices = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+let categories = JSON.parse(localStorage.getItem(CAT_KEY) || 'null') || DEFAULT_CATS.slice();
+let currency = localStorage.getItem(CURR_KEY) || 'AED';
+let activeDate = todayStr();
+let editingId = null;
+let selectedCategory = categories[0];
+let isPaid = false;
+let reportRange = 'week';
+
+function todayStr(){
+  const d = new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function persist(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(invoices)); }
+function persistCats(){ localStorage.setItem(CAT_KEY, JSON.stringify(categories)); }
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+function fmt(n){ return (Math.round((n||0)*100)/100).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(()=>t.classList.remove('show'), 1800);
+}
+
+/* ===================== NAVIGATION ===================== */
+function showPage(name){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active', b.dataset.page===name));
+  if(name==='reports') renderReports();
+  if(name==='settings') renderSettings();
+  if(name==='export'){
+    if(!document.getElementById('exportFrom').value){
+      const d = new Date();
+      const firstOfMonth = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-01';
+      document.getElementById('exportFrom').value = firstOfMonth;
+      document.getElementById('exportTo').value = todayStr();
+    }
+  }
+}
+
+/* ===================== HOME PAGE RENDER ===================== */
+function dayLabel(dateStr){
+  const d = new Date(dateStr+'T00:00:00');
+  return d.toLocaleDateString(undefined,{weekday:'short', day:'2-digit', month:'short', year:'numeric'});
+}
+function shiftDay(delta){
+  const d = new Date(activeDate+'T00:00:00');
+  d.setDate(d.getDate()+delta);
+  activeDate = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  document.getElementById('activeDate').value = activeDate;
+  renderHome();
+}
+function onDateChange(){
+  activeDate = document.getElementById('activeDate').value;
+  renderHome();
+}
+
+function renderHome(){
+  document.getElementById('headerDate').textContent = dayLabel(activeDate);
+  document.getElementById('receiptDateLabel').textContent = dayLabel(activeDate).toUpperCase();
+
+  const dayInvoices = invoices.filter(i=>i.date===activeDate).sort((a,b)=> (b.createdAt||0)-(a.createdAt||0));
+  const subtotal = dayInvoices.reduce((s,i)=>s+(parseFloat(i.amount)||0),0);
+  const vat = dayInvoices.reduce((s,i)=>s+(parseFloat(i.vat)||0),0);
+  const total = dayInvoices.reduce((s,i)=>s+(parseFloat(i.total)||0),0);
+
+  document.getElementById('rInvCount').textContent = dayInvoices.length;
+  document.getElementById('rSubtotal').textContent = fmt(subtotal);
+  document.getElementById('rVat').textContent = fmt(vat);
+  document.getElementById('rTotal').textContent = currency+' '+fmt(total);
+  document.getElementById('invCountLabel').textContent = dayInvoices.length;
+
+  // category chips
+  const byCat = {};
+  dayInvoices.forEach(i=>{ byCat[i.category] = (byCat[i.category]||0) + (parseFloat(i.total)||0); });
+  const catColors = {};
+  categories.forEach((c,idx)=>{ catColors[c] = ['#3F6F52','#C99A3C','#B23A2E','#5b7fa6','#8a6db1','#a37b4a'][idx%6]; });
+  const chipHtml = Object.keys(byCat).map(c=>`<div class="cat-chip"><span class="dot" style="background:${catColors[c]||'#888'}"></span>${c}: ${fmt(byCat[c])}</div>`).join('');
+  document.getElementById('catSummary').innerHTML = chipHtml;
+
+  const listEl = document.getElementById('invoiceList');
+  const emptyEl = document.getElementById('emptyState');
+  if(dayInvoices.length===0){
+    listEl.innerHTML=''; emptyEl.style.display='block';
+  } else {
+    emptyEl.style.display='none';
+    listEl.innerHTML = dayInvoices.map(inv=>`
+      <div class="invoice-card ${inv.paid?'':'unpaid'}" onclick="openEditSheet('${inv.id}')">
+        <div class="inv-main">
+          <div class="inv-name">${escapeHtml(inv.name||'(no name)')}</div>
+          <div class="inv-meta">
+            <span class="inv-tag">${escapeHtml(inv.category||'—')}</span>
+            ${inv.invno?`<span class="inv-tag">#${escapeHtml(inv.invno)}</span>`:''}
+            <span class="inv-tag" style="color:${inv.paid?'#3F6F52':'#B23A2E'}">${inv.paid?'Paid':'Credit'}</span>
+          </div>
+        </div>
+        <div class="inv-amt">${fmt(inv.total)}<small>VAT ${fmt(inv.vat)}</small></div>
+      </div>
+    `).join('');
+  }
+}
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+/* ===================== ADD/EDIT SHEET ===================== */
+function renderCatPicker(){
+  const picker = document.getElementById('catPicker');
+  picker.innerHTML = categories.map(c=>`<div class="cat-pill ${c===selectedCategory?'active':''}" onclick="pickCategory('${c.replace(/'/g,"\\'")}')">${escapeHtml(c)}</div>`).join('');
+}
+function pickCategory(c){ selectedCategory = c; renderCatPicker(); }
+function setPaidStatus(paid){
+  isPaid = paid;
+  document.getElementById('togglePaid').classList.toggle('active', paid);
+  document.getElementById('toggleUnpaid').classList.toggle('active', !paid);
+}
+function recalcVat(){
+  // auto-suggest 5% VAT if VAT field is empty, helps speed of entry
+  const amtField = document.getElementById('f_amount');
+  const vatField = document.getElementById('f_vat');
+  const totalField = document.getElementById('f_total');
+  if(vatField.dataset.touched) return;
+  const amt = parseFloat(amtField.value)||0;
+  if(amt>0){
+    const vat = Math.round(amt*5)/100;
+    vatField.value = vat.toFixed(2);
+    totalField.value = (amt+vat).toFixed(2);
+  }
+}
+document.addEventListener('DOMContentLoaded',()=>{
+  document.getElementById('f_vat').addEventListener('input', e=>{ e.target.dataset.touched='1'; updateTotalFromParts(); });
+  document.getElementById('f_amount').addEventListener('input', updateTotalFromParts);
+});
+function updateTotalFromParts(){
+  const amt = parseFloat(document.getElementById('f_amount').value)||0;
+  const vat = parseFloat(document.getElementById('f_vat').value)||0;
+  if(document.getElementById('f_vat').dataset.touched){
+    document.getElementById('f_total').value = (amt+vat).toFixed(2);
+  }
+}
+
+function openAddSheet(){
+  editingId = null;
+  document.getElementById('sheetTitle').textContent = 'Add Invoice';
+  document.getElementById('deleteBtn').style.display='none';
+  document.getElementById('f_name').value='';
+  document.getElementById('f_invno').value='';
+  document.getElementById('f_date').value = activeDate;
+  document.getElementById('f_amount').value='';
+  document.getElementById('f_vat').value='';
+  document.getElementById('f_vat').dataset.touched='';
+  document.getElementById('f_total').value='';
+  document.getElementById('f_note').value='';
+  selectedCategory = categories[0];
+  setPaidStatus(false);
+  renderCatPicker();
+  document.getElementById('addSheetOverlay').classList.add('show');
+  setTimeout(()=>document.getElementById('f_name').focus(), 250);
+}
+function openEditSheet(id){
+  const inv = invoices.find(i=>i.id===id);
+  if(!inv) return;
+  editingId = id;
+  document.getElementById('sheetTitle').textContent = 'Edit Invoice';
+  document.getElementById('deleteBtn').style.display='block';
+  document.getElementById('f_name').value = inv.name||'';
+  document.getElementById('f_invno').value = inv.invno||'';
+  document.getElementById('f_date').value = inv.date;
+  document.getElementById('f_amount').value = inv.amount||'';
+  document.getElementById('f_vat').value = inv.vat||'';
+  document.getElementById('f_vat').dataset.touched='1';
+  document.getElementById('f_total').value = inv.total||'';
+  document.getElementById('f_note').value = inv.note||'';
+  selectedCategory = inv.category || categories[0];
+  setPaidStatus(!!inv.paid);
+  renderCatPicker();
+  document.getElementById('addSheetOverlay').classList.add('show');
+}
+function closeAddSheet(){
+  document.getElementById('addSheetOverlay').classList.remove('show');
+}
+function saveInvoice(){
+  const name = document.getElementById('f_name').value.trim();
+  const date = document.getElementById('f_date').value;
+  if(!name){ showToast('Please enter supplier name'); return; }
+  if(!date){ showToast('Please pick a date'); return; }
+
+  const data = {
+    name,
+    invno: document.getElementById('f_invno').value.trim(),
+    date,
+    amount: parseFloat(document.getElementById('f_amount').value)||0,
+    vat: parseFloat(document.getElementById('f_vat').value)||0,
+    total: parseFloat(document.getElementById('f_total').value)|| (parseFloat(document.getElementById('f_amount').value)||0)+(parseFloat(document.getElementById('f_vat').value)||0),
+    category: selectedCategory,
+    paid: isPaid,
+    note: document.getElementById('f_note').value.trim(),
+  };
+
+  if(editingId){
+    const idx = invoices.findIndex(i=>i.id===editingId);
+    invoices[idx] = {...invoices[idx], ...data};
+  } else {
+    data.id = uid();
+    data.createdAt = Date.now();
+    invoices.push(data);
+  }
+  persist();
+  activeDate = date;
+  document.getElementById('activeDate').value = activeDate;
+  closeAddSheet();
+  renderHome();
+  showToast(editingId? 'Invoice updated' : 'Invoice saved');
+}
+function deleteInvoice(){
+  if(!editingId) return;
+  invoices = invoices.filter(i=>i.id!==editingId);
+  persist();
+  closeAddSheet();
+  renderHome();
+  showToast('Invoice deleted');
+}
+
+/* ===================== REPORTS ===================== */
+function setReportRange(r){
+  reportRange = r;
+  document.querySelectorAll('.range-tab').forEach(t=>t.classList.toggle('active', t.dataset.range===r));
+  renderReports();
+}
+function getRangeInvoices(){
+  if(reportRange==='all') return invoices;
+  const now = new Date();
+  let from;
+  if(reportRange==='week'){
+    from = new Date(now); from.setDate(now.getDate()-now.getDay());
+  } else {
+    from = new Date(now.getFullYear(), now.getMonth(), 1);
+  }
+  const fromStr = from.getFullYear()+'-'+String(from.getMonth()+1).padStart(2,'0')+'-'+String(from.getDate()).padStart(2,'0');
+  return invoices.filter(i=>i.date>=fromStr);
+}
+function renderReports(){
+  const list = getRangeInvoices();
+  const total = list.reduce((s,i)=>s+(parseFloat(i.total)||0),0);
+  const vat = list.reduce((s,i)=>s+(parseFloat(i.vat)||0),0);
+  document.getElementById('repCount').textContent = list.length;
+  document.getElementById('repTotal').textContent = fmt(total);
+  document.getElementById('repVat').textContent = fmt(vat);
+  document.getElementById('repAvg').textContent = fmt(list.length? total/list.length : 0);
+
+  const byCat = {};
+  list.forEach(i=>{ byCat[i.category||'Uncategorized'] = (byCat[i.category||'Uncategorized']||0)+(parseFloat(i.total)||0); });
+  const maxCat = Math.max(1, ...Object.values(byCat));
+  const catColors = {};
+  categories.forEach((c,idx)=>{ catColors[c] = ['#3F6F52','#C99A3C','#B23A2E','#5b7fa6','#8a6db1','#a37b4a'][idx%6]; });
+  document.getElementById('catBars').innerHTML = Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([cat,amt])=>`
+    <div class="bar-row">
+      <div class="bar-label">${escapeHtml(cat)}</div>
+      <div class="bar-track"><div class="bar-fill" style="width:${(amt/maxCat*100)}%; background:${catColors[cat]||'#888'}"></div></div>
+      <div class="bar-amt">${fmt(amt)}</div>
+    </div>
+  `).join('') || '<p style="font-size:13px;color:#9c9484;">No data in this range.</p>';
+
+  const bySupplier = {};
+  list.forEach(i=>{
+    const k = i.name||'(no name)';
+    if(!bySupplier[k]) bySupplier[k] = {total:0,count:0,unpaid:0};
+    bySupplier[k].total += parseFloat(i.total)||0;
+    bySupplier[k].count += 1;
+    if(!i.paid) bySupplier[k].unpaid += parseFloat(i.total)||0;
+  });
+  const supplierEntries = Object.entries(bySupplier).sort((a,b)=>b[1].total-a[1].total);
+  document.getElementById('supplierList').innerHTML = supplierEntries.map(([name,d])=>`
+    <div class="supplier-row">
+      <div>
+        <div class="supplier-name">${escapeHtml(name)}</div>
+        <div class="supplier-count">${d.count} invoice${d.count>1?'s':''}${d.unpaid>0?` · ${currency} ${fmt(d.unpaid)} owed`:''}</div>
+      </div>
+      <div class="supplier-amt">${fmt(d.total)}</div>
+    </div>
+  `).join('') || '<div style="padding:14px; font-size:13px; color:#9c9484;">No suppliers yet.</div>';
+}
+
+/* ===================== SETTINGS ===================== */
+function renderSettings(){
+  document.getElementById('currencySymbol').value = currency;
+  document.getElementById('categoryManageList').innerHTML = categories.map(c=>`
+    <div class="settings-item">
+      <span>${escapeHtml(c)}</span>
+      <span class="remove" onclick="removeCategory('${c.replace(/'/g,"\\'")}')">Remove</span>
+    </div>
+  `).join('');
+}
+function addCategory(){
+  const input = document.getElementById('newCatInput');
+  const val = input.value.trim();
+  if(!val) return;
+  if(categories.includes(val)){ showToast('Category already exists'); return; }
+  categories.push(val);
+  persistCats();
+  input.value='';
+  renderSettings();
+  showToast('Category added');
+}
+function removeCategory(c){
+  if(categories.length<=1){ showToast('Keep at least one category'); return; }
+  categories = categories.filter(x=>x!==c);
+  persistCats();
+  renderSettings();
+}
+function saveCurrency(){
+  currency = document.getElementById('currencySymbol').value.trim() || 'AED';
+  localStorage.setItem(CURR_KEY, currency);
+  renderHome();
+  showToast('Currency updated');
+}
+function confirmClearAll(){
+  if(confirm('This will permanently delete ALL invoices. This cannot be undone. Continue?')){
+    if(confirm('Are you absolutely sure? Consider exporting a backup first.')){
+      invoices = [];
+      persist();
+      renderHome();
+      showToast('All data erased');
+    }
+  }
+}
+
+/* ===================== EXPORT TO EXCEL ===================== */
+function exportExcel(){
+  const from = document.getElementById('exportFrom').value;
+  const to = document.getElementById('exportTo').value;
+  if(!from || !to){ showToast('Pick both dates'); return; }
+  const list = invoices.filter(i=>i.date>=from && i.date<=to).sort((a,b)=> a.date.localeCompare(b.date) || (a.createdAt||0)-(b.createdAt||0));
+  if(list.length===0){ showToast('No invoices in this range'); return; }
+
+  const catCols = categories.slice();
+  const header = ['DATE','NAME','INVOICE NO.','AMOUNT','VAT','TOTAL', ...catCols.map(c=>c.toUpperCase()), 'STATUS','NOTE'];
+  const rows = [header];
+
+  let curDate = null;
+  let dayAmt=0, dayVat=0, dayTotal=0;
+  const dayCatTotals = {};
+  catCols.forEach(c=>dayCatTotals[c]=0);
+
+  function flushDayTotal(){
+    if(curDate===null) return;
+    rows.push([
+      formatDateForExcel(curDate),'>> DAY TOTAL','', round2(dayAmt), round2(dayVat), round2(dayTotal),
+      ...catCols.map(c=>round2(dayCatTotals[c])),
+      '',''
+    ]);
+  }
+
+  list.forEach(inv=>{
+    if(curDate!==inv.date){
+      flushDayTotal();
+      curDate = inv.date;
+      dayAmt=0; dayVat=0; dayTotal=0;
+      catCols.forEach(c=>dayCatTotals[c]=0);
+    }
+    const catRowVals = catCols.map(c=> c===inv.category ? round2(inv.total) : '');
+    rows.push([
+      formatDateForExcel(inv.date), inv.name, inv.invno, round2(inv.amount), round2(inv.vat), round2(inv.total),
+      ...catRowVals,
+      inv.paid?'Paid':'Credit', inv.note||''
+    ]);
+    dayAmt += parseFloat(inv.amount)||0;
+    dayVat += parseFloat(inv.vat)||0;
+    dayTotal += parseFloat(inv.total)||0;
+    dayCatTotals[inv.category] = (dayCatTotals[inv.category]||0) + (parseFloat(inv.total)||0);
+  });
+  flushDayTotal();
+
+  const grandTotal = list.reduce((s,i)=>s+(parseFloat(i.total)||0),0);
+  const grandAmt = list.reduce((s,i)=>s+(parseFloat(i.amount)||0),0);
+  const grandVat = list.reduce((s,i)=>s+(parseFloat(i.vat)||0),0);
+  rows.push([]);
+  rows.push(['GRAND TOTAL','','', round2(grandAmt), round2(grandVat), round2(grandTotal)]);
+
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = header.map((h,idx)=> idx===1? {wch:20} : idx===8+catCols.length? {wch:24} : {wch:13});
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Invoices');
+  const fname = `Purchase_Invoices_${from}_to_${to}.xlsx`;
+  XLSX.writeFile(wb, fname);
+  showToast('Excel file downloaded');
+}
+function round2(n){ return Math.round((parseFloat(n)||0)*100)/100; }
+function formatDateForExcel(d){
+  const dt = new Date(d+'T00:00:00');
+  return dt.toLocaleDateString('en-GB');
+}
+
+function exportBackupJSON(){
+  const data = { invoices, categories, currency, exportedAt: new Date().toISOString() };
+  const blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `ledger_backup_${todayStr()}.json`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('Backup downloaded');
+}
+function restoreFromFile(event){
+  const file = event.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = (e)=>{
+    try{
+      const data = JSON.parse(e.target.result);
+      if(!Array.isArray(data.invoices)) throw new Error('Invalid backup file');
+      const merge = confirm(`This backup has ${data.invoices.length} invoice(s).\n\nPress OK to MERGE with your current data, or Cancel to REPLACE your current data entirely.`);
+      if(merge){
+        const existingIds = new Set(invoices.map(i=>i.id));
+        data.invoices.forEach(inv=>{ if(!existingIds.has(inv.id)) invoices.push(inv); });
+      } else {
+        invoices = data.invoices;
+      }
+      if(Array.isArray(data.categories)){
+        data.categories.forEach(c=>{ if(!categories.includes(c)) categories.push(c); });
+        persistCats();
+      }
+      if(data.currency){ currency = data.currency; localStorage.setItem(CURR_KEY, currency); }
+      persist();
+      renderHome();
+      renderSettings();
+      showToast('Backup restored successfully');
+    }catch(err){
+      showToast('Could not read this backup file');
+    }
+    event.target.value = '';
+  };
+  reader.readAsText(file);
+}
+
+/* ===================== INIT ===================== */
+document.getElementById('activeDate').value = activeDate;
+renderHome();
+
+/* Register service worker for offline support */
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('sw.js').catch(()=>{});
+  });
+}
+</script>
+</body>
+</html>
